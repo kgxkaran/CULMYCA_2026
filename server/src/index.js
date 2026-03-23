@@ -1,9 +1,13 @@
+import 'dotenv/config';
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import http from 'http';
 import { Server } from 'socket.io';
+import passport from 'passport';
+import './config/passport.js';
+import authRoutes from './routes/auth.routes.js';
 
 dotenv.config();
 
@@ -16,7 +20,7 @@ const io = new Server(httpServer , {
 //Middlewares
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
 app.use(express.json());
-
+app.use(passport.initialize());
 //Health check
 app.get('/api/health' , (req,res)=>{
     res.json({
@@ -24,6 +28,7 @@ app.get('/api/health' , (req,res)=>{
         message : "Api running !! " 
     });
 });
+app.use('/api/auth', authRoutes);
 
 //socket.io
 io.on('connection' , (socket)=>{
