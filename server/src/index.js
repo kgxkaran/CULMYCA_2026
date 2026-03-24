@@ -8,6 +8,7 @@ import { Server } from 'socket.io';
 import passport from 'passport';
 import './config/passport.js';
 import authRoutes from './routes/auth.routes.js';
+import eventRoutes from './routes/event.routes.js';
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ app.get('/api/health' , (req,res)=>{
     });
 });
 app.use('/api/auth', authRoutes);
+app.use('/api/events', eventRoutes);
 
 //socket.io
 io.on('connection' , (socket)=>{
