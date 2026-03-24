@@ -3,13 +3,13 @@ import useAuthStore from './store/authStore'
 
 // Pages import karenge — abhi banayenge
 import LandingPage from './pages/LandingPage'
-import EventsPage from './pages/events/EventsPage'
-import EventDetailPage from './pages/events/EventDetailPage'
-import LoginPage from './pages/auth/LoginPage'
-import SignupPage from './pages/auth/SignupPage'
+import EventsPage from './pages/events pages/EventsPage'
+import EventDetailPage from './pages/events pages/EventDetailPage'
+import LoginPage from './pages/auth pages/LoginPage'
+import SignupPage from './pages/auth pages/SignupPage'
 import StudentDashboard from './pages/student/StudentDashboard'
 import AdminDashboard from './pages/admin/AdminDashboard'
-import AuthCallback from './pages/auth/AuthCallback'
+import AuthCallback from './pages/auth pages/AuthCallback'
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
