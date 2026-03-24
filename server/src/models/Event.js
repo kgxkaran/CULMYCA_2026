@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose, {Schema} from 'mongoose';
 
 const eventSchema = new Schema(
     {
@@ -67,7 +67,7 @@ const eventSchema = new Schema(
         },
         isActive: {
             type : Boolean,
-            requited : true,
+            default : true,
         },
         },
         {timestamp : true},
