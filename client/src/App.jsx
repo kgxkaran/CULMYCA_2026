@@ -10,6 +10,7 @@ import SignupPage from './pages/auth pages/SignupPage'
 import StudentDashboard from './pages/student/StudentDashboard'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AuthCallback from './pages/auth pages/AuthCallback'
+import Layout from './Components/Layout/Layout.jsx'
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
@@ -27,25 +28,31 @@ export default function App() {
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/events" element={<EventsPage />} />
-      <Route path="/events/:id" element={<EventDetailPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/" element={
+        <Layout><LandingPage /></Layout>} />
+      <Route path="/events" element={
+        <Layout><EventsPage /></Layout>} />
+      <Route path="/events/:id" element={<Layout><EventDetailPage /></Layout>} />
+      <Route path="/login" element={<Layout><LoginPage /></Layout>} />
+      <Route path="/signup" element={<Layout><SignupPage /></Layout>} />
+      <Route path="/auth/callback" element={<Layout><AuthCallback /></Layout>} />
 
       {/* Protected routes */}
       <Route path="/dashboard" element={
+        <Layout>
         <ProtectedRoute>
           <StudentDashboard />
         </ProtectedRoute>
+        </Layout>
       } />
 
       {/* Admin only routes */}
       <Route path="/admin/*" element={
+        <Layout>
         <AdminRoute>
           <AdminDashboard />
         </AdminRoute>
+        </Layout>
       } />
     </Routes>
   )
