@@ -1,220 +1,255 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import api from '../../utils/axios'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  ArrowLeft, Calendar, Clock, MapPin, Users, Trophy,
+  CheckCircle2, AlertCircle,
+} from 'lucide-react'
+import axiosInstance from '../../utils/axios'
 import useAuthStore from '../../store/authStore'
+import RegistrationModal from '../../components/registration/RegistrationModal'
+
+const catColor = {
+  cultural: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  technical: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  gaming:   'bg-green-500/20 text-green-300 border-green-500/30',
+  art:      'bg-pink-500/20 text-pink-300 border-pink-500/30',
+}
 
 export default function EventDetailPage() {
-  const { id } = useParams() // URL se event ID lo → /events/:id
+  const { id } = useParams()
   const navigate = useNavigate()
   const { isAuthenticated } = useAuthStore()
 
+  const [showModal, setShowModal] = useState(false)
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['event', id],
-    queryFn: async () => {
-      const { data } = await api.get(`/events/${id}`)
-      return data
-    },
+    queryFn: () => axiosInstance.get(`/events/${id}`).then((r) => r.data.event),
+  })
+
+  // Check if user already registered for this event
+  const { data: myRegs } = useQuery({
+    queryKey: ['my-registrations'],
+    queryFn: () => axiosInstance.get('/registrations/my').then((r) => r.data.registrations),
+    enabled: isAuthenticated,
   })
 
   if (isLoading) {
     return (
-      <div className="min-h-screen pt-24 px-4 flex items-center justify-center">
-        <div className="text-gray-400 text-lg animate-pulse">Loading event...</div>
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="min-h-screen pt-24 px-4 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-5xl mb-4">😕</div>
-          <h3 className="text-xl text-white">Event not found</h3>
+      <div className="min-h-screen bg-dark-300 pt-24 px-4">
+        <div className="max-w-4xl mx-auto animate-pulse space-y-4">
+          <div className="h-8 bg-dark-200 rounded w-1/3" />
+          <div className="h-64 bg-dark-200 rounded-xl" />
         </div>
       </div>
     )
   }
 
-  const event = data?.event
+  if (isError || !data) {
+    return (
+      <div className="min-h-screen bg-dark-300 pt-24 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle size={48} className="text-red-400 mx-auto mb-4" />
+          <p className="text-white text-lg font-medium">Event not found</p>
+          <button onClick={() => navigate('/events')} className="btn-primary mt-4">
+            Back to events
+          </button>
+        </div>
+      </div>
+    )
+  }
 
-  const categoryColors = {
-    cultural: 'text-purple-400',
-    technical: 'text-blue-400',
-    gaming: 'text-green-400',
-    art: 'text-pink-400',
+  const event = data
+  const slotsLeft = event.totalSlots - event.registeredCount
+  const fillPct = Math.round((event.registeredCount / event.totalSlots) * 100)
+  const isFull = slotsLeft <= 0
+
+  const alreadyRegistered = myRegs?.some(
+    (r) => r.event._id === event._id && r.status !== 'cancelled'
+  )
+
+  const badgeClass = catColor[event.category] || 'bg-gray-500/20 text-gray-300 border-gray-500/30'
+
+  const barColor =
+    fillPct >= 80 ? 'bg-red-500' : fillPct >= 50 ? 'bg-yellow-400' : 'bg-primary-500'
+
+  const handlePaymentRequired = (registration) => {
+    // TODO (next step): open Razorpay with registration.orderId
+    console.log('Payment required for registration:', registration._id)
   }
 
   return (
-    <div className="min-h-screen pt-24 pb-16 px-4">
-      <div className="max-w-4xl mx-auto">
-
-        {/* Back Button */}
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-8"
-        >
-          ← Back to Events
-        </motion.button>
-
-        <div className="grid md:grid-cols-3 gap-8">
-
-          {/* Left — Main Info */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="md:col-span-2 space-y-6"
+    <>
+      <div className="min-h-screen bg-dark-300 pt-20 pb-16">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          {/* Back */}
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-dark-100 hover:text-white transition-colors mb-6 mt-4"
           >
-            {/* Category + Title */}
-            <div>
-              <span className={`text-sm font-medium uppercase tracking-wider ${categoryColors[event.category]}`}>
-                {event.category}
-              </span>
-              <h1 className="text-3xl sm:text-4xl font-bold text-white mt-2">
-                {event.title}
-              </h1>
-            </div>
+            <ArrowLeft size={18} /> Back to events
+          </button>
 
-            {/* Description */}
-            <div className="card">
-              <h2 className="text-lg font-semibold text-white mb-3">About this event</h2>
-              <p className="text-gray-400 leading-relaxed">{event.description}</p>
-            </div>
-
-            {/* Rules */}
-            {event.rules?.length > 0 && (
-              <div className="card">
-                <h2 className="text-lg font-semibold text-white mb-3">Rules & Guidelines</h2>
-                <ul className="space-y-2">
-                  {event.rules.map((rule, i) => (
-                    <li key={i} className="flex items-start gap-3 text-gray-400">
-                      <span className="text-primary-400 font-bold mt-0.5">{i + 1}.</span>
-                      {rule}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Prizes */}
-            {event.prizes && (
-              <div className="card">
-                <h2 className="text-lg font-semibold text-white mb-3">🏆 Prizes</h2>
-                <div className="space-y-2">
-                  {event.prizes.first && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🥇</span>
-                      <div>
-                        <div className="text-xs text-gray-500">1st Place</div>
-                        <div className="text-amber-400 font-semibold">{event.prizes.first}</div>
-                      </div>
-                    </div>
-                  )}
-                  {event.prizes.second && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🥈</span>
-                      <div>
-                        <div className="text-xs text-gray-500">2nd Place</div>
-                        <div className="text-gray-300 font-semibold">{event.prizes.second}</div>
-                      </div>
-                    </div>
-                  )}
-                  {event.prizes.third && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🥉</span>
-                      <div>
-                        <div className="text-xs text-gray-500">3rd Place</div>
-                        <div className="text-amber-700 font-semibold">{event.prizes.third}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </motion.div>
-
-          {/* Right — Registration Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-4"
-          >
-            {/* Registration Card */}
-            <div className="card sticky top-24">
-              {/* Fee */}
-              <div className="text-center mb-6">
-                <div className="text-3xl font-bold text-white">
-                  {event.isPaid ? `₹${event.registrationFee}` : 'FREE'}
-                </div>
-                <div className="text-gray-500 text-sm">per team</div>
-              </div>
-
-              {/* Event Details */}
-              <div className="space-y-3 mb-6">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">📅 Date</span>
-                  <span className="text-white">{new Date(event.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">🕐 Time</span>
-                  <span className="text-white">{event.time}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">📍 Venue</span>
-                  <span className="text-white">{event.venue}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">👥 Team Size</span>
-                  <span className="text-white">
-                    {event.teamSizeMin === event.teamSizeMax
-                      ? event.teamSizeMin === 1 ? 'Solo' : `${event.teamSizeMin} members`
-                      : `${event.teamSizeMin}-${event.teamSizeMax} members`}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* ── Left column ── */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Header */}
+              <div>
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${badgeClass}`}>
+                    {event.category}
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                    event.isPaid
+                      ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                      : 'bg-green-500/20 text-green-300 border-green-500/30'
+                  }`}>
+                    {event.isPaid ? `₹${event.registrationFee}` : 'Free'}
                   </span>
                 </div>
+                <h1 className="text-3xl font-bold text-white mb-2">{event.title}</h1>
               </div>
 
-              {/* Slots */}
-              <div className="mb-6">
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>{event.registeredCount} registered</span>
-                  <span>{event.totalSlots - event.registeredCount} left</span>
-                </div>
-                <div className="h-2 bg-dark-300 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary-600 rounded-full transition-all"
-                    style={{ width: `${(event.registeredCount / event.totalSlots) * 100}%` }}
-                  />
-                </div>
+              {/* Description */}
+              <div className="card p-6">
+                <h2 className="text-white font-semibold mb-3">About this event</h2>
+                <p className="text-dark-100 leading-relaxed">{event.description}</p>
               </div>
 
-              {/* Register Button */}
-              {event.totalSlots - event.registeredCount === 0 ? (
-                <button disabled className="w-full py-3 rounded-lg bg-gray-700 text-gray-500 cursor-not-allowed font-medium">
-                  Registrations Full
-                </button>
-              ) : isAuthenticated ? (
-                <button className="btn-primary w-full py-3 text-base">
-                  Register Now →
-                </button>
-              ) : (
-                <button
-                  onClick={() => navigate('/login')}
-                  className="btn-primary w-full py-3 text-base"
-                >
-                  Login to Register →
-                </button>
+              {/* Rules */}
+              {event.rules?.length > 0 && (
+                <div className="card p-6">
+                  <h2 className="text-white font-semibold mb-3">Rules</h2>
+                  <ol className="space-y-2">
+                    {event.rules.map((rule, i) => (
+                      <li key={i} className="flex gap-3 text-dark-100 text-sm">
+                        <span className="text-primary-400 font-bold shrink-0">{i + 1}.</span>
+                        {rule}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               )}
 
-              <p className="text-xs text-gray-500 text-center mt-3">
-                {event.totalSlots - event.registeredCount} spots remaining
-              </p>
+              {/* Prizes */}
+              {(event.prizes?.first || event.prizes?.second || event.prizes?.third) && (
+                <div className="card p-6">
+                  <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <Trophy size={18} className="text-yellow-400" /> Prize pool
+                  </h2>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { place: '1st', prize: event.prizes?.first, emoji: '🥇', color: 'border-yellow-500/40 bg-yellow-500/10' },
+                      { place: '2nd', prize: event.prizes?.second, emoji: '🥈', color: 'border-gray-400/40 bg-gray-400/10' },
+                      { place: '3rd', prize: event.prizes?.third, emoji: '🥉', color: 'border-orange-600/40 bg-orange-600/10' },
+                    ].map(({ place, prize, emoji, color }) =>
+                      prize ? (
+                        <div key={place} className={`rounded-xl border p-4 text-center ${color}`}>
+                          <div className="text-2xl mb-1">{emoji}</div>
+                          <p className="text-xs text-dark-100">{place} place</p>
+                          <p className="text-white font-bold mt-1">{prize}</p>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-          </motion.div>
+
+            {/* ── Right column — sticky registration card ── */}
+            <div className="lg:col-span-1">
+              <div className="card p-6 lg:sticky lg:top-24">
+                <h2 className="text-white font-semibold mb-4">Registration</h2>
+
+                {/* Details */}
+                <div className="space-y-3 mb-5">
+                  {[
+                    { icon: Calendar, label: new Date(event.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) },
+                    { icon: Clock, label: event.time },
+                    { icon: MapPin, label: event.venue },
+                    { icon: Users, label: event.teamSizeMax > 1 ? `Team: ${event.teamSizeMin}–${event.teamSizeMax} members` : 'Solo event' },
+                  ].map(({ icon: Icon, label }) => (
+                    <div key={label} className="flex items-center gap-3 text-dark-100 text-sm">
+                      <Icon size={15} className="text-primary-400 shrink-0" />
+                      {label}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Slots bar */}
+                <div className="mb-5">
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-dark-100">Slots</span>
+                    <span className={isFull ? 'text-red-400' : 'text-dark-100'}>
+                      {isFull ? 'Full' : `${slotsLeft} left`}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-dark-100/20 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${fillPct}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                      className={`h-full rounded-full ${barColor}`}
+                    />
+                  </div>
+                  <p className="text-xs text-dark-100 mt-1">
+                    {event.registeredCount} / {event.totalSlots} registered
+                  </p>
+                </div>
+
+                {/* Fee */}
+                <div className="flex items-center justify-between mb-5">
+                  <span className="text-dark-100 text-sm">Registration fee</span>
+                  <span className={`font-bold text-lg ${event.isPaid ? 'text-white' : 'text-green-400'}`}>
+                    {event.isPaid ? `₹${event.registrationFee}` : 'Free'}
+                  </span>
+                </div>
+
+                {/* CTA */}
+                {alreadyRegistered ? (
+                  <div className="flex items-center gap-2 justify-center py-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-medium">
+                    <CheckCircle2 size={16} /> Already registered
+                  </div>
+                ) : isFull ? (
+                  <button disabled className="btn-primary w-full opacity-50 cursor-not-allowed">
+                    Event full
+                  </button>
+                ) : isAuthenticated ? (
+                  <button onClick={() => setShowModal(true)} className="btn-primary w-full">
+                    {event.isPaid ? `Register · ₹${event.registrationFee}` : 'Register for free'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => navigate('/login', { state: { from: { pathname: `/events/${id}` } } })}
+                    className="btn-outline w-full"
+                  >
+                    Login to register
+                  </button>
+                )}
+
+                {event.isPaid && !alreadyRegistered && !isFull && isAuthenticated && (
+                  <p className="text-xs text-dark-100 text-center mt-3">
+                    Secure payment via Razorpay
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Registration Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <RegistrationModal
+            event={event}
+            onClose={() => setShowModal(false)}
+            onPaymentRequired={handlePaymentRequired}
+          />
+        )}
+      </AnimatePresence>
+    </>
   )
 }
