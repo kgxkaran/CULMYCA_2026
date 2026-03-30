@@ -5,20 +5,13 @@ export const createEvent = async (req, res) => {
   try {
     const {
       title, description, category, date, time,
-      venue, isPaid, registrationFee, teamSizeMin,
+      venue,teamSizeMin,
       teamSizeMax, totalSlots, prizes, rules,
     } = req.body;
 
-    if (!isPaid && registrationFee > 0) {
-      return res.status(400).json({
-        message: 'Free event cannot have registration fee',
-      });
-    }
-
     const event = await Event.create({
       title, description, category, date, time,
-      venue, isPaid,
-      registrationFee: isPaid ? registrationFee : 0,
+      venue,
       teamSizeMin, teamSizeMax, totalSlots,
       prizes, rules,
       createdBy: req.user._id, 
@@ -36,16 +29,11 @@ export const createEvent = async (req, res) => {
 // ─── GET ALL events (everyone dekh sakta hai) ─────────────
 export const getAllEvents = async (req, res) => {
   try {
-    const { category, isPaid, search } = req.query;
+    const { category,search } = req.query;
 
     let filter = { isActive: true };
 
     if (category) filter.category = category;
-
-    if (isPaid !== undefined) {
-      filter.isPaid = isPaid === 'true'; 
-   
-    }
 
     if (search) {
       filter.title = { $regex: search, $options: 'i' };
