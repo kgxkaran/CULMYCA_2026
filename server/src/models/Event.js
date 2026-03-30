@@ -28,14 +28,6 @@ const eventSchema = new Schema(
             type: String,
             required: [true, 'Venue is required'],
         },
-        isPaid : {
-            type: Boolean,
-            default: false,
-        },
-        registrationFee : {
-            type: Number,
-            default: 0,
-        },
         teamSizeMin : {
             type: Number,
             default: 1,
