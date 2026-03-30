@@ -6,10 +6,10 @@ import EventCard from '../../components/events/EventCard'
 import api from '../../utils/axios'
 
 // Events fetch karne ka function
-const fetchEvents = async ({ category, isPaid, search }) => {
+const fetchEvents = async ({ category,search }) => {
   const params = new URLSearchParams()
   if (category && category !== 'all') params.append('category', category)
-  if (isPaid !== 'all') params.append('isPaid', isPaid)
+
   if (search) params.append('search', search)
 
   const { data } = await api.get(`/events?${params.toString()}`)
@@ -40,14 +40,13 @@ export default function EventsPage() {
 
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState(searchParams.get('category') || 'all')
-  const [isPaid, setIsPaid] = useState('all')
 
   // React Query se data fetch karo
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['events', category, isPaid, search],
+    queryKey: ['events', category, search],
     // queryKey important hai — jab bhi yeh values change hon
     // React Query automatically refetch karega!
-    queryFn: () => fetchEvents({ category, isPaid, search }),
+    queryFn: () => fetchEvents({ category,search }),
     staleTime: 2 * 60 * 1000, // 2 min cache
   })
 
@@ -124,7 +123,6 @@ export default function EventsPage() {
           ))}
         </motion.div>
 
-        {/* Paid/Free Filter */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -134,13 +132,10 @@ export default function EventsPage() {
           {[
             { value: 'all', label: 'All' },
             { value: 'false', label: '🆓 Free' },
-            { value: 'true', label: '💳 Paid' },
           ].map((f) => (
             <FilterBtn
               key={f.value}
               label={f.label}
-              active={isPaid === f.value}
-              onClick={() => setIsPaid(f.value)}
             />
           ))}
         </motion.div>
@@ -159,7 +154,7 @@ export default function EventsPage() {
             ))}
           </div>
           // Skeleton loading — cards ki jagah placeholder boxes
-          // Real data aane tak yeh dikhe — professional feel!
+          // Real data aane tak yeh dikhe — professional !
         )}
 
         {/* Error State */}
@@ -188,7 +183,7 @@ export default function EventsPage() {
         {!isLoading && !isError && data?.events?.length > 0 && (
           <AnimatePresence mode="wait">
             <motion.div
-              key={`${category}-${isPaid}-${search}`}
+              key={`${category}-${search}`}
               // key change hone pe AnimatePresence exit + enter animation chalayega
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
