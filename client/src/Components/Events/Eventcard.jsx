@@ -25,17 +25,10 @@ export default function EventCard({ event, index }) {
       whileHover={{ y: -4 }}
       className="card flex flex-col h-full group"
     >
-      {/* Top — Category + Paid Badge */}
+     
       <div className="flex items-center justify-between mb-3">
         <span className={`text-xs font-medium px-3 py-1 rounded-full border ${categoryColors[event.category]}`}>
           {categoryIcons[event.category]} {event.category}
-        </span>
-        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-          event.isPaid
-            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-            : 'bg-green-500/20 text-green-400 border border-green-500/30'
-        }`}>
-          {event.isPaid ? `₹${event.registrationFee}` : 'FREE'}
         </span>
       </div>
 
