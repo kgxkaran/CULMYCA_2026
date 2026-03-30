@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import useAuthStore from './store/authStore'
 
-// Pages import karenge — abhi banayenge
+// Pages import karenge
 import LandingPage from './pages/LandingPage'
 import EventsPage from './pages/events pages/EventsPage'
 import EventDetailPage from './pages/events pages/EventDetailPage'
