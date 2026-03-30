@@ -3,12 +3,12 @@ import { nanoid } from 'nanoid'
 import Registration from '../models/Registration.js'
 import Event from '../models/Event.js'
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helper ─────────────────────────────────────────────────────────────────
 
-const generateTicket = async (registrationId) => {
+export const generateTicket = async (registrationId) => {
   const ticketId = `MYCA-${nanoid(8).toUpperCase()}`
-  const qrData = JSON.stringify({ ticketId, registrationId })
-  const qrCode = await QRCode.toDataURL(qrData, {
+  const qrData   = JSON.stringify({ ticketId, registrationId })
+  const qrCode   = await QRCode.toDataURL(qrData, {
     width: 300,
     margin: 2,
     color: { dark: '#000000', light: '#ffffff' },
@@ -17,10 +17,7 @@ const generateTicket = async (registrationId) => {
 }
 
 // ─── POST /api/registrations/initiate ───────────────────────────────────────
-// Called for BOTH free and paid events.
-// For free  → confirms immediately, generates ticket, returns registration.
-// For paid  → creates a pending registration, returns it so frontend can
-//             open Razorpay. Payment controller will confirm it later.
+// All events are free — confirms immediately and generates ticket.
 
 export const initiateRegistration = async (req, res) => {
   try {
@@ -52,44 +49,34 @@ export const initiateRegistration = async (req, res) => {
       }
       const count = members?.length || 0
       if (count < event.teamSizeMin - 1 || count > event.teamSizeMax - 1) {
-        // members array = teammates only (excludes the registering user)
         return res.status(400).json({
           message: `Add ${event.teamSizeMin - 1}–${event.teamSizeMax - 1} teammates (excluding yourself).`,
         })
       }
     }
 
-    // 5. Build registration doc
-    const regData = {
-      event: eventId,
+    // 5. Create registration
+    const registration = await Registration.create({
+      event:       eventId,
       registeredBy: userId,
       isTeam,
-      teamName: isTeam ? teamName.trim() : '',
-      members: isTeam ? members : [],
-      amount: event.isPaid ? event.registrationFee * 100 : 0, // paise
-      paymentStatus: event.isPaid ? 'pending' : 'free',
-      status: event.isPaid ? 'pending' : 'confirmed',
-    }
+      teamName:    isTeam ? teamName.trim() : '',
+      members:     isTeam ? members : [],
+      status:      'confirmed',
+    })
 
-    const registration = await Registration.create(regData)
+    // 6. Generate ticket + QR immediately
+    const { ticketId, qrCode } = await generateTicket(registration._id.toString())
+    registration.ticketId = ticketId
+    registration.qrCode   = qrCode
+    await registration.save()
 
-    // 6. Free event → generate ticket immediately
-    if (!event.isPaid) {
-      const { ticketId, qrCode } = await generateTicket(registration._id.toString())
-      registration.ticketId = ticketId
-      registration.qrCode = qrCode
-      await registration.save()
+    // 7. Increment slot count
+    await Event.findByIdAndUpdate(eventId, { $inc: { registeredCount: 1 } })
 
-      // Increment slot count
-      await Event.findByIdAndUpdate(eventId, { $inc: { registeredCount: 1 } })
+    const populated = await registration.populate('event', 'title date time venue category')
+    res.status(201).json({ registration: populated })
 
-      const populated = await registration.populate('event', 'title date time venue category')
-      return res.status(201).json({ registration: populated, requiresPayment: false })
-    }
-
-    // 7. Paid event → return pending registration for Razorpay flow
-    const populated = await registration.populate('event', 'title date time venue category registrationFee')
-    return res.status(201).json({ registration: populated, requiresPayment: true })
   } catch (err) {
     if (err.code === 11000) {
       return res.status(400).json({ message: 'You have already registered for this event.' })
@@ -99,47 +86,12 @@ export const initiateRegistration = async (req, res) => {
   }
 }
 
-// ─── POST /api/registrations/confirm-free ───────────────────────────────────
-// Fallback for confirming a free registration that's stuck in pending.
-// Not normally needed — initiateRegistration handles free events — but
-// useful during testing.
-
-export const confirmFreeRegistration = async (req, res) => {
-  try {
-    const { registrationId } = req.body
-    const registration = await Registration.findById(registrationId)
-
-    if (!registration) return res.status(404).json({ message: 'Registration not found.' })
-    if (!registration.registeredBy.equals(req.user._id)) {
-      return res.status(403).json({ message: 'Not authorised.' })
-    }
-    if (registration.paymentStatus !== 'free') {
-      return res.status(400).json({ message: 'This is a paid event — use the payment flow.' })
-    }
-    if (registration.status === 'confirmed') {
-      return res.status(400).json({ message: 'Already confirmed.' })
-    }
-
-    const { ticketId, qrCode } = await generateTicket(registration._id.toString())
-    registration.ticketId = ticketId
-    registration.qrCode = qrCode
-    registration.status = 'confirmed'
-    await registration.save()
-
-    await Event.findByIdAndUpdate(registration.event, { $inc: { registeredCount: 1 } })
-
-    res.json({ registration })
-  } catch (err) {
-    res.status(500).json({ message: 'Server error.' })
-  }
-}
-
 // ─── GET /api/registrations/my ──────────────────────────────────────────────
 
 export const getMyRegistrations = async (req, res) => {
   try {
     const registrations = await Registration.find({ registeredBy: req.user._id })
-      .populate('event', 'title date time venue category isPaid registrationFee poster')
+      .populate('event', 'title date time venue category poster')
       .sort({ createdAt: -1 })
 
     res.json({ registrations })
@@ -152,14 +104,12 @@ export const getMyRegistrations = async (req, res) => {
 
 export const getRegistrationById = async (req, res) => {
   try {
-    const registration = await Registration.findById(req.params.id).populate(
-      'event',
-      'title date time venue category isPaid registrationFee'
-    )
+    const registration = await Registration.findById(req.params.id)
+      .populate('event', 'title date time venue category')
 
-    if (!registration) return res.status(404).json({ message: 'Registration not found.' })
-
-    // Only owner or admin can view
+    if (!registration) {
+      return res.status(404).json({ message: 'Registration not found.' })
+    }
     if (!registration.registeredBy.equals(req.user._id) && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Not authorised.' })
     }
@@ -170,7 +120,7 @@ export const getRegistrationById = async (req, res) => {
   }
 }
 
-// ─── GET /api/registrations/event/:eventId (admin) ──────────────────────────
+// ─── GET /api/registrations/event/:eventId  (admin only) ────────────────────
 
 export const getRegistrationsByEvent = async (req, res) => {
   try {
@@ -184,13 +134,14 @@ export const getRegistrationsByEvent = async (req, res) => {
   }
 }
 
-// ─── DELETE /api/registrations/:id (cancel) ─────────────────────────────────
+// ─── DELETE /api/registrations/:id  (cancel) ────────────────────────────────
 
 export const cancelRegistration = async (req, res) => {
   try {
     const registration = await Registration.findById(req.params.id)
-    if (!registration) return res.status(404).json({ message: 'Registration not found.' })
-
+    if (!registration) {
+      return res.status(404).json({ message: 'Registration not found.' })
+    }
     if (!registration.registeredBy.equals(req.user._id)) {
       return res.status(403).json({ message: 'Not authorised.' })
     }
@@ -201,15 +152,11 @@ export const cancelRegistration = async (req, res) => {
     registration.status = 'cancelled'
     await registration.save()
 
-    // Free up the slot only if it was confirmed
-    if (registration.status === 'confirmed' || registration.paymentStatus === 'free') {
-      await Event.findByIdAndUpdate(registration.event, { $inc: { registeredCount: -1 } })
-    }
+    // Free up the slot
+    await Event.findByIdAndUpdate(registration.event, { $inc: { registeredCount: -1 } })
 
     res.json({ message: 'Registration cancelled.' })
   } catch (err) {
     res.status(500).json({ message: 'Server error.' })
   }
 }
-
-export { generateTicket }
